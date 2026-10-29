@@ -1,0 +1,16 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.example.storagefinder.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "StringDecomposerMixin",
+    "FogRendererMixin",
+    "EntityMixin",
+    "ConnectionSendMixin",
+    "ConnectionReadMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

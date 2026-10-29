@@ -1,0 +1,72 @@
+plugins {
+    id 'fabric-loom' version '1.14-SNAPSHOT'
+    id 'maven-publish'
+}
+
+def sha = System.getenv("GITHUB_SHA")
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+    archivesName = "krux-client-1.8"
+}
+
+// nazwy plików bez numeru wersji
+tasks.withType(AbstractArchiveTask).configureEach {
+    archiveVersion = ""
+}
+
+// zwykły jar (nieprzemapowany, z klasyfikatorem "dev") idzie do osobnego folderu,
+// żeby w build/libs były tylko gotowe pliki dla gry
+tasks.named('jar') {
+    destinationDirectory = layout.buildDirectory.dir("devlibs")
+}
+
+repositories {
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+}
+
+processResources {
+    inputs.property "version", project.version.toString()
+    inputs.property "sha", sha ? sha.take(7) : "local"
+
+    filesMatching("fabric.mod.json") {
+        expand "version": project.version.toString()
+    }
+    filesMatching("krux_build.properties") {
+        expand "build": (sha ? sha.take(7) : "local")
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    it.options.release = 21
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
+
+// Jeden build = DWA pliki w build/libs:
+//   krux-client-1.8.jar            (wersja dla klientów — bez klucza do podpisywania)
+//   krux-client-1.8-developer.jar  (to samo + wbudowany klucz do generowania licencji; tylko dla Ciebie)
+tasks.register('developerJar', Zip) {
+    def rj = tasks.named('remapJar')
+    dependsOn rj
+    archiveFileName = "krux-client-1.8-developer.jar"
+    destinationDirectory = layout.buildDirectory.dir("libs")
+    from(zipTree(rj.flatMap { it.archiveFile }))
+    from('dev-secret') {
+        include 'krux_dev_private.key'
+    }
+}
+tasks.named('assemble') {
+    dependsOn 'developerJar'
+}

@@ -1,0 +1,152 @@
+package com.example.storagefinder;
+
+import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.network.chat.Component;
+
+/** Konfigurator licencji (tylko w wersji developer): Lifetime / 30 dni / własna liczba dni. */
+public class KruxDevScreen extends Screen {
+    private static final int PW = 360, PH = 196;
+
+    private final Screen parent;
+    private EditBox outBox, daysBox, noteBox;
+    private int mode = 1;                 // 0 Lifetime, 1 30 days, 2 Custom
+    private String msg = "";
+    private int msgColor = KruxUi.MUT;
+
+    public KruxDevScreen(Screen parent) {
+        super(Component.literal(Krux.NAME + " developer"));
+        this.parent = parent;
+    }
+
+    private int px() { return (this.width - PW) / 2; }
+    private int py() { return (this.height - PH) / 2; }
+
+    @Override
+    protected void init() {
+        int x = px(), y = py();
+        outBox = new EditBox(this.font, x + 22, y + 134, PW - 44 - 62, 14, Component.literal("Output"));
+        outBox.setBordered(false);
+        outBox.setMaxLength(700);
+        outBox.setTextColor(KruxUi.TEXT);
+        addWidget(outBox);
+
+        daysBox = new EditBox(this.font, x + 252, y + 66, 40, 14, Component.literal("Days"));
+        daysBox.setBordered(false);
+        daysBox.setMaxLength(4);
+        daysBox.setValue("30");
+        daysBox.setTextColor(KruxUi.TEXT);
+        addWidget(daysBox);
+
+        noteBox = new EditBox(this.font, x + 22, y + 94, PW - 44, 14, Component.literal("Note"));
+        noteBox.setBordered(false);
+        noteBox.setMaxLength(80);
+        noteBox.setTextColor(KruxUi.TEXT);
+        noteBox.setHint(Component.literal("Buyer / note (saved to issued.log)"));
+        addWidget(noteBox);
+    }
+
+    private void copy(String s) {
+        this.minecraft.keyboardHandler.setClipboard(s);
+    }
+
+    @Override
+    public void render(GuiGraphics g, int mx, int my, float pt) {
+        g.fill(0, 0, this.width, this.height, KruxUi.VEIL);
+        int x = px(), y = py();
+        KruxUi.panel(g, x, y, PW, PH);
+        KruxUi.logo(g, this.font, x + 16, y + 14);
+        KruxFont.draw(g, this.font, Krux.NAME, x + 42, y + 16, KruxUi.TEXT);
+        KruxFont.draw(g, this.font, "License generator (developer version)", x + 42, y + 27, KruxUi.MUT);
+
+        String[] labels = {"Lifetime", "30 days", "Custom"};
+        KruxFont.draw(g, this.font, "License type", x + 16, y + 46, KruxUi.TEXT);
+        for (int i = 0; i < labels.length; i++) {
+            int bx = x + 16 + i * 76;
+            KruxUi.button(g, this.font, bx, y + 58, 70, 20, labels[i], KruxUi.hit(mx, my, bx, y + 58, 70, 20), mode == i);
+        }
+        if (mode == 2) {
+            KruxFont.draw(g, this.font, "Days:", x + 240, y + 64, KruxUi.MUT);
+            KruxUi.field(g, x + 270, y + 60, 48, 18, daysBox.isFocused());
+            daysBox.setX(x + 276);
+            daysBox.setY(y + 64);
+            daysBox.render(g, mx, my, pt);
+        }
+
+        KruxUi.field(g, x + 16, y + 90, PW - 32, 22, noteBox.isFocused());
+        noteBox.setX(x + 22);
+        noteBox.setY(y + 94);
+        noteBox.render(g, mx, my, pt);
+
+        KruxUi.field(g, x + 16, y + 130, PW - 32 - 62, 22, false);
+        outBox.setX(x + 22);
+        outBox.setY(y + 134);
+        outBox.render(g, mx, my, pt);
+        KruxUi.button(g, this.font, x + PW - 16 - 56, y + 130, 56, 22, "Copy",
+                KruxUi.hit(mx, my, x + PW - 16 - 56, y + 130, 56, 22), false);
+
+        KruxUi.button(g, this.font, x + 16, y + PH - 30, 130, 20, "Generate license",
+                KruxUi.hit(mx, my, x + 16, y + PH - 30, 130, 20), true);
+        KruxUi.button(g, this.font, x + PW - 16 - 54, y + PH - 30, 54, 20, "Close",
+                KruxUi.hit(mx, my, x + PW - 16 - 54, y + PH - 30, 54, 20), false);
+
+        if (!msg.isEmpty()) KruxFont.draw(g, this.font, msg, x + 16, y + 160, msgColor);
+        KruxFont.draw(g, this.font, "Build " + Krux.buildId(), x + 160, y + PH - 24, KruxUi.DIM);
+    }
+
+    private int parseDays() {
+        try {
+            return Math.max(1, Integer.parseInt(daysBox.getValue().trim()));
+        } catch (Exception e) {
+            return 30;
+        }
+    }
+
+    @Override
+    public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
+        double mx = event.x(), my = event.y();
+        int x = px(), y = py();
+        if (event.button() != 0) return super.mouseClicked(event, doubleClick);
+
+        if (KruxUi.hit(mx, my, x + PW - 16 - 54, y + PH - 30, 54, 20)) {
+            onClose();
+            return true;
+        }
+        for (int i = 0; i < 3; i++) {
+            if (KruxUi.hit(mx, my, x + 16 + i * 76, y + 58, 70, 20)) {
+                mode = i;
+                return true;
+            }
+        }
+        if (KruxUi.hit(mx, my, x + 16, y + PH - 30, 130, 20)) {
+            try {
+                boolean life = mode == 0;
+                int days = mode == 1 ? 30 : parseDays();
+                String token = Krux.issue(life, days, noteBox.getValue());
+                outBox.setValue(token);
+                outBox.moveCursorToStart(false);
+                copy(token);
+                msg = "License generated and copied to clipboard (saved in config/krux/issued.log).";
+                msgColor = KruxUi.GREEN;
+            } catch (Exception e) {
+                msg = "Could not generate: " + e.getMessage();
+                msgColor = KruxUi.RED;
+            }
+            return true;
+        }
+        if (KruxUi.hit(mx, my, x + PW - 16 - 56, y + 130, 56, 22)) {
+            copy(outBox.getValue());
+            msg = "Copied.";
+            msgColor = KruxUi.GREEN;
+            return true;
+        }
+        return super.mouseClicked(event, doubleClick);
+    }
+
+    @Override
+    public void onClose() {
+        this.minecraft.setScreen(parent);
+    }
+}
